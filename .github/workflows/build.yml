@@ -1,0 +1,86 @@
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The signing key is not in git. Add these repository secrets (Settings → Secrets and
+      # variables → Actions): SIGNING_KEYSTORE_BASE64, SIGNING_STORE_PASSWORD, SIGNING_KEY_ALIAS,
+      # SIGNING_KEY_PASSWORD. Without them the APK is signed with a throwaway debug key, which
+      # Google sign-in will reject, so no release is published.
+      - name: Signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            {
+              echo "SIGNING_KEYSTORE_PATH=$RUNNER_TEMP/release.jks"
+              echo "SIGNING_STORE_PASSWORD=$STORE_PASSWORD"
+              echo "SIGNING_KEY_ALIAS=$KEY_ALIAS"
+              echo "SIGNING_KEY_PASSWORD=$KEY_PASSWORD"
+              echo "APP_KEY_CONFIGURED=true"
+            } >> "$GITHUB_ENV"
+          else
+            echo "::warning::Signing secrets are not set: this APK uses a temporary debug key and Google sign-in will not work with it. See README → Signing key."
+            echo "APP_KEY_CONFIGURED=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest
+
+      - name: Build release APK
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          ./gradlew assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk EventTracker.apk
+          APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner"
+          SHA1=$("$APKSIGNER" verify --print-certs EventTracker.apk | grep -m1 'SHA-1' | awk '{print $NF}' | sed 's/../&:/g; s/:$//' | tr a-f A-F)
+          echo "SIGNING_SHA1=$SHA1" >> "$GITHUB_ENV"
+          {
+            echo "### Event Tracker build ${{ github.run_number }}"
+            echo "Signing certificate SHA-1 (register this in Google Cloud): \`$SHA1\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EventTracker-${{ github.run_number }}
+          path: EventTracker.apk
+
+      # Pushes to the default branch (or a manual run) publish a release, so the newest APK is
+      # always at: https://github.com/<owner>/<repo>/releases/latest/download/EventTracker.apk
+      - name: Publish release
+        if: env.APP_KEY_CONFIGURED == 'true' && (github.ref_name == github.event.repository.default_branch || github.event_name == 'workflow_dispatch')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Event Tracker 1.0.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          files: EventTracker.apk
+          body: |
+            Install: open this page on your phone, download **EventTracker.apk** and open it
+            (allow "Install unknown apps" for your browser when asked). Installs as an update over
+            earlier builds.
+
+            Signing certificate SHA-1: `${{ env.SIGNING_SHA1 }}`

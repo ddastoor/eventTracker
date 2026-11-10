@@ -1,0 +1,16 @@
+.gradle/
+build/
+/local.properties
+.idea/
+*.iml
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+
+# Signing key and passwords: never commit (see README "Signing key")
+signing/
+*.jks
+*.keystore
