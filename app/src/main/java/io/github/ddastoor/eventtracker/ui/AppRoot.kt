@@ -258,7 +258,11 @@ private fun SyncBanner(status: SyncStatus, authError: String?, onReconnect: () -
     ) {
         Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                (if (status.needsAuth) "Google access needs approval. " else "Not synced: ") + message,
+                when {
+                    message == io.github.ddastoor.eventtracker.data.GoogleApi.DRIVE_PERMISSION_MISSING -> message
+                    status.needsAuth -> "Google access needs approval. $message"
+                    else -> "Not synced: $message"
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onErrorContainer,
                 modifier = Modifier.weight(1f),

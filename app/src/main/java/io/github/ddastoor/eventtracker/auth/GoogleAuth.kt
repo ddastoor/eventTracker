@@ -13,6 +13,7 @@ import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.gms.common.api.Scope
 import io.github.ddastoor.eventtracker.data.AuthRequiredException
+import io.github.ddastoor.eventtracker.data.GoogleApi
 import io.github.ddastoor.eventtracker.data.TokenProvider
 import kotlinx.coroutines.tasks.await
 import java.io.IOException
@@ -46,7 +47,17 @@ class GoogleAuth(context: Context) : TokenProvider {
 
     fun resultFromIntent(data: Intent?): AuthorizationResult = client.getAuthorizationResultFromIntent(data)
 
+    /**
+     * Google's consent screen lets people untick individual permissions. True unless the result
+     * says Drive access was left out.
+     */
+    fun hasDriveAccess(result: AuthorizationResult): Boolean {
+        val granted = result.grantedScopes
+        return granted.isNullOrEmpty() || DRIVE_FILE_SCOPE in granted
+    }
+
     fun accept(result: AuthorizationResult) {
+        if (!hasDriveAccess(result)) return
         result.accessToken?.let {
             cachedToken = it
             cachedAtMillis = System.currentTimeMillis()
@@ -62,6 +73,9 @@ class GoogleAuth(context: Context) : TokenProvider {
         } catch (e: ApiException) {
             if (e.statusCode == CommonStatusCodes.NETWORK_ERROR) throw IOException(describe(e))
             throw AuthRequiredException(describe(e))
+        }
+        if (!result.hasResolution() && !hasDriveAccess(result)) {
+            throw AuthRequiredException(GoogleApi.DRIVE_PERMISSION_MISSING)
         }
         if (result.hasResolution() || result.accessToken == null) {
             throw AuthRequiredException("Google needs you to approve access again.")

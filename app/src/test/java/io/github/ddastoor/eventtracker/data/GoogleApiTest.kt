@@ -71,6 +71,19 @@ class GoogleApiTest {
     }
 
     @Test
+    fun `missing Drive permission asks the user to reconnect`() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(403).setBody(
+                """{"error":{"code":403,"message":"Request had insufficient authentication scopes.","status":"PERMISSION_DENIED","details":[{"reason":"ACCESS_TOKEN_SCOPE_INSUFFICIENT"}]}}""",
+            ),
+        )
+        val e = runCatching { api.findByAppProperty("eventtracker", "root") }.exceptionOrNull()
+        assertTrue(e is AuthRequiredException)
+        assertEquals(GoogleApi.DRIVE_PERMISSION_MISSING, e!!.message)
+        assertEquals(listOf("token-1"), tokens.invalidated)
+    }
+
+    @Test
     fun `api errors carry a helpful message`() = runBlocking {
         server.enqueue(
             MockResponse().setResponseCode(403).setBody(

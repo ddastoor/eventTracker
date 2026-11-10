@@ -8,6 +8,7 @@ import androidx.core.content.edit
 import com.google.android.gms.auth.api.identity.AuthorizationResult
 import io.github.ddastoor.eventtracker.auth.GoogleAuth
 import io.github.ddastoor.eventtracker.data.AttachmentStore
+import io.github.ddastoor.eventtracker.data.AuthRequiredException
 import io.github.ddastoor.eventtracker.data.GoogleApi
 import io.github.ddastoor.eventtracker.data.LocalStore
 import io.github.ddastoor.eventtracker.data.Repository
@@ -74,6 +75,7 @@ class AppContainer(private val app: Application, private val connectToGoogle: Bo
 
     /** Called after the user approved access in Google's consent screen (or silently). */
     suspend fun completeSignIn(result: AuthorizationResult) {
+        if (!auth.hasDriveAccess(result)) throw AuthRequiredException(GoogleApi.DRIVE_PERMISSION_MISSING)
         auth.accept(result)
         if (_account.value != null && backend != null) {
             // Re-approval for the account that is already signed in: keep local data, just sync.

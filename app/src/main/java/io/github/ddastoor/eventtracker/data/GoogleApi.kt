@@ -258,10 +258,19 @@ class GoogleApi(
                     attempt++
                 }
                 code == 401 -> throw AuthRequiredException("Google rejected the sign-in. Please sign in again.")
+                code == 403 && isMissingScope(errorText) -> {
+                    // The user didn't tick the Google Drive permission. Drop the token so the next
+                    // authorization asks again.
+                    tokens.invalidate(token)
+                    throw AuthRequiredException(DRIVE_PERMISSION_MISSING)
+                }
                 else -> throw ApiException(code, describeError(code, errorText))
             }
         }
     }
+
+    private fun isMissingScope(body: String) =
+        body.contains("ACCESS_TOKEN_SCOPE_INSUFFICIENT") || body.contains("insufficient authentication scopes", ignoreCase = true)
 
     private fun isRateLimit(code: Int, body: String) =
         code == 403 && (body.contains("rateLimitExceeded") || body.contains("userRateLimitExceeded"))
@@ -287,6 +296,9 @@ class GoogleApi(
 
     companion object {
         const val APP_KEY = "eventtracker"
+        const val DRIVE_PERMISSION_MISSING =
+            "Event Tracker needs permission to use its own files in your Google Drive. Tap Reconnect " +
+                "and make sure the Google Drive box is ticked on Google's screen."
         private val JSON = "application/json; charset=utf-8".toMediaType()
 
         fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
