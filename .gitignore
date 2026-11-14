@@ -8,6 +8,7 @@ captures/
 .externalNativeBuild/
 .cxx/
 *.apk
+!download/EventTracker.apk
 *.aab
 
 # Signing key and passwords: never commit (see README "Signing key")

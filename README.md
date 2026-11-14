@@ -94,6 +94,9 @@ take effect).
 
 ## Installing the APK
 
+**Download:** <https://github.com/ddastoor/eventTracker/raw/main/download/EventTracker.apk>
+(open it on your phone, or use `adb install -r EventTracker.apk` for an emulator).
+
 - **From GitHub Releases**: once the signing secrets are set (see *Signing key* below), every push
   to the default branch (or a manual run of the *Build APK* workflow under **Actions**) publishes a
   release. On your phone open
